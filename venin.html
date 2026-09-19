@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Venin — synthé wobble et hardcore</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Big+Shoulders+Display:wght@800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#efe9f5; --panel:#e0d5eb; --ink:#241a30; --muted:#6c5a80;
+  --accent:#d81b60; --accent2:#0277bd; --track:#bfb0d0; --line:#c7b8d8;
+  --keyw:#fbf8ff; --keyb:#2a1d36; --onink:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1324; --panel:#2b1e38; --ink:#f3e9ff; --muted:#a692bd;
+    --accent:#ff3d81; --accent2:#4fd8ff; --track:#4a3a5e; --line:#3d2d51;
+    --keyw:#e9def5; --keyb:#0f0916; --onink:#1c1324;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1324; --panel:#2b1e38; --ink:#f3e9ff; --muted:#a692bd;
+  --accent:#ff3d81; --accent2:#4fd8ff; --track:#4a3a5e; --line:#3d2d51;
+  --keyw:#e9def5; --keyb:#0f0916; --onink:#1c1324;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; font-weight:500;
+  padding:14px 14px 210px; -webkit-tap-highlight-color:transparent;
+}
+header{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+h1{
+  font-family:'Big Shoulders Display',Impact,'Arial Narrow',sans-serif; font-weight:800;
+  font-size:52px; line-height:.9; margin:0; letter-spacing:.01em;
+}
+header p{margin:0;color:var(--muted);font-size:14px}
+#scope{width:100%;height:96px;display:block;background:var(--panel);border-radius:12px}
+.hint{color:var(--muted);font-size:13px;margin:6px 2px 10px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+#presets{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;margin:0 -14px;padding-left:14px;padding-right:14px;scrollbar-width:none}
+#presets::-webkit-scrollbar{display:none}
+button{font:inherit;color:inherit}
+.chips button, .dock button{
+  border:1px solid var(--line); background:transparent; color:var(--ink);
+  padding:8px 13px; border-radius:8px; font-size:14px; font-weight:600; flex:0 0 auto; cursor:pointer;
+}
+.chips button[aria-pressed="true"], .dock button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--onink)}
+button:focus-visible,.knob:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.panel{background:var(--panel);border-radius:12px;padding:12px 12px 14px}
+.panel h2{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 4px}
+.knob{display:flex;flex-direction:column;align-items:center;touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize;border-radius:8px}
+.knob svg{width:52px;height:52px}
+.trk{fill:none;stroke:var(--track);stroke-width:4;stroke-linecap:round}
+.val{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round}
+.ptr{stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
+.knob .v{font-size:11.5px;min-height:14px;font-variant-numeric:tabular-nums}
+.knob .l{font-size:12px;color:var(--muted);text-align:center}
+.knob.dim{opacity:.35}
+.dock{
+  position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom));z-index:10;
+}
+.bar{display:flex;gap:6px;align-items:center;margin-bottom:8px;overflow-x:auto;scrollbar-width:none}
+.bar .oct{min-width:38px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.bar .sp{flex:1}
+.kb{position:relative;display:flex;height:112px;touch-action:none;user-select:none;-webkit-user-select:none}
+.white{flex:1;background:var(--keyw);border:1px solid var(--line);border-radius:0 0 6px 6px}
+.black{position:absolute;top:0;height:62%;background:var(--keyb);border-radius:0 0 4px 4px;z-index:2}
+.white.on,.black.on{background:var(--accent)}
+@media (min-width:720px){ body{padding-bottom:230px} .kb{height:130px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Venin</h1>
+  <p>Synthé pour wobble et hardcore</p>
+</header>
+
+<canvas id="scope"></canvas>
+<p class="hint">Active Hold, joue une note, puis tourne les boutons pour entendre le wobble bouger.</p>
+
+<div class="chips" id="presets"></div>
+
+<div class="panels" id="panels"></div>
+
+<div class="dock">
+  <div class="bar">
+    <button type="button" id="octDn" aria-label="Octave plus basse">−</button>
+    <span class="oct" id="octLbl">C2</span>
+    <button type="button" id="octUp" aria-label="Octave plus haute">+</button>
+    <button type="button" id="hold" aria-pressed="false">Hold</button>
+    <button type="button" id="stop">Stop</button>
+    <span class="sp"></span>
+    <button type="button" id="midi">MIDI</button>
+  </div>
+  <div class="kb" id="kb"></div>
+</div>
+
+<script>
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+
+/* ---------- paramètres ---------- */
+const INIT = {
+  wtA:.4, uni:1, det:20, wid:.7, wtB:.4, semB:0, lvlB:0, sub:0,
+  cutoff:8000, reso:1, fEnv:0, fDec:.3,
+  lfoRate:2, lfoDepth:0, lfoShape:'sine', sync:'Libre', bpm:150,
+  A:.003, D:.3, S:1, R:.15,
+  pAmt:0, pDec:.08, drive:0, mode:0, vol:.7, oct:2
+};
+const P = { ...INIT };
+
+const PRESETS = {
+  'Wobble':      { wtA:.4, uni:3, det:14, sub:.5, cutoff:420, reso:9, lfoDepth:34, sync:'1/8', R:.12, drive:.35, oct:2 },
+  'Reese':       { wtA:.4, uni:2, det:38, sub:.6, cutoff:1100, reso:3, lfoRate:.25, lfoDepth:14, A:.01, R:.4, drive:.3, oct:2 },
+  'Screech':     { wtA:1, uni:5, det:16, wid:1, cutoff:7000, reso:5, fEnv:12, fDec:.15, pAmt:5, pDec:.05, R:.12, drive:.6, mode:1, oct:4 },
+  'Kick gabber': { wtA:0, uni:1, cutoff:20000, reso:.5, pAmt:40, pDec:.09, A:.001, D:.35, S:0, R:.08, drive:.9, oct:1 },
+  'Supersaw':    { wtA:.4, uni:7, det:36, wid:1, cutoff:9000, reso:1.5, A:.005, R:.3, drive:.25, oct:3 },
+  'Init':        {}
+};
+
+/* ---------- tables d'ondes ---------- */
+const NH = 64;
+const TABLE_NAMES = ['Sinus','Triangle','Scie','Carré','Impulsion','Screech'];
+function makeTable(kind){
+  const re = new Float32Array(NH + 1), im = new Float32Array(NH + 1);
+  for (let n = 1; n <= NH; n++){
+    if (kind === 0) im[n] = n === 1 ? 1 : 0;
+    else if (kind === 1){ if (n % 2) im[n] = (((n - 1) / 2) % 2 ? -1 : 1) / (n * n); }
+    else if (kind === 2) im[n] = 1 / n;
+    else if (kind === 3){ if (n % 2) im[n] = 1 / n; }
+    else if (kind === 4){ const ph = 2 * Math.PI * .12 * n; re[n] = Math.sin(ph) / n; im[n] = (1 - Math.cos(ph)) / n; }
+    else im[n] = (1 / n) * (1 + 5 * Math.exp(-((n - 14) ** 2) / 20));
+  }
+  return { re, im };
+}
+const TABLES = [0,1,2,3,4,5].map(makeTable);
+function morph(pos){
+  const x = clamp(pos) * 5, i = Math.min(4, Math.floor(x)), f = x - i, a = TABLES[i], b = TABLES[i + 1];
+  const re = new Float32Array(NH + 1), im = new Float32Array(NH + 1);
+  for (let n = 1; n <= NH; n++){
+    re[n] = a.re[n] + (b.re[n] - a.re[n]) * f;
+    im[n] = a.im[n] + (b.im[n] - a.im[n]) * f;
+  }
+  return { re, im };
+}
+const waveCache = new Map();
+function getWave(pos){
+  const k = Math.round(pos * 100);
+  if (!waveCache.has(k)){ const m = morph(k / 100); waveCache.set(k, ctx.createPeriodicWave(m.re, m.im)); }
+  return waveCache.get(k);
+}
+function samples(pos, N = 180){
+  const m = morph(pos), y = new Float32Array(N); let mx = 1e-4;
+  for (let i = 0; i < N; i++){
+    const th = i / N * 2 * Math.PI; let s = 0;
+    for (let n = 1; n <= NH; n++) s += m.re[n] * Math.cos(n * th) + m.im[n] * Math.sin(n * th);
+    y[i] = s; mx = Math.max(mx, Math.abs(s));
+  }
+  for (let i = 0; i < N; i++) y[i] /= mx;
+  return y;
+}
+
+/* ---------- audio ---------- */
+let ctx, bus, shaper, post, lim, master;
+const voices = new Map();   // note -> voice
+const all = new Set();      // toutes les voix qui sonnent encore
+const MAX_VOICES = 6;
+
+function makeCurve(mode, drive){
+  const n = 2048, c = new Float32Array(n), k = mode === 2 ? 1 + drive * 6 : 1 + drive * 50;
+  for (let i = 0; i < n; i++){
+    const x = i * 2 / (n - 1) - 1;
+    c[i] = mode === 0 ? Math.tanh(k * x) : mode === 1 ? clamp(k * x, -1, 1) : Math.sin(k * x * 1.2);
+  }
+  return c;
+}
+function updateCurve(){ if (shaper) shaper.curve = makeCurve(P.mode, P.drive); }
+
+function ensureCtx(){
+  if (ctx){ if (ctx.state !== 'running') ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  bus = ctx.createGain(); bus.gain.value = .5;
+  shaper = ctx.createWaveShaper(); shaper.oversample = '4x'; updateCurve();
+  post = ctx.createGain(); post.gain.value = .8;
+  lim = ctx.createDynamicsCompressor();
+  lim.threshold.value = -4; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .08;
+  master = ctx.createGain(); master.gain.value = P.vol;
+  bus.connect(shaper); shaper.connect(post); post.connect(lim); lim.connect(master); master.connect(ctx.destination);
+}
+
+const SYNC = { '1/2':2, '1/4':1, '1/4T':2/3, '1/8':.5, '1/8T':1/3, '1/16':.25, '1/16T':1/6 };
+const lfoHz = () => P.sync === 'Libre' ? P.lfoRate : (P.bpm / 60) / SYNC[P.sync];
+const base = () => 12 * (P.oct + 1);
+
+function noteOn(note){
+  ensureCtx();
+  if (voices.has(note)) release(voices.get(note), .03);
+  // limite de polyphonie
+  const live = [...voices.values()];
+  if (live.length >= MAX_VOICES){ const old = live[0]; release(old, .04); voices.delete(old.note); }
+
+  const t = ctx.currentTime, f0 = 440 * Math.pow(2, (note - 69) / 12);
+  const v = { note, oscs: [] };
+
+  const mix = ctx.createGain();
+  const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
+  f1.type = f2.type = 'lowpass';
+  f1.frequency.value = f2.frequency.value = P.cutoff;
+  f1.Q.value = P.reso; f2.Q.value = .7;
+  const amp = ctx.createGain();
+  mix.connect(f1); f1.connect(f2); f2.connect(amp); amp.connect(bus);
+
+  // enveloppe de filtre (en cents, retombe à 0)
+  [f1, f2].forEach(f => {
+    f.detune.setValueAtTime(P.fEnv * 100, t);
+    f.detune.setTargetAtTime(0, t, Math.max(.01, P.fDec / 3));
+  });
+
+  // LFO par voix (phase relancée à chaque note)
+  const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+  lfo.type = P.lfoShape; lfo.frequency.value = lfoHz(); lfoG.gain.value = P.lfoDepth * 100;
+  lfo.connect(lfoG); lfoG.connect(f1.detune); lfoG.connect(f2.detune);
+  lfo.start(t);
+
+  const pe = (o, off) => {
+    o.detune.setValueAtTime(off + P.pAmt * 100, t);
+    if (P.pAmt > 0) o.detune.setTargetAtTime(off, t, Math.max(.004, P.pDec / 3));
+  };
+
+  // oscillateur A en unisson
+  const N = P.uni, waveA = getWave(P.wtA);
+  for (let i = 0; i < N; i++){
+    const o = ctx.createOscillator(); o.setPeriodicWave(waveA); o.frequency.value = f0;
+    const pos = N === 1 ? 0 : (i / (N - 1)) * 2 - 1;
+    pe(o, pos * P.det);
+    const g = ctx.createGain(); g.gain.value = .75 / Math.sqrt(N);
+    o.connect(g);
+    if (N > 1){ const p = ctx.createStereoPanner(); p.pan.value = pos * P.wid; g.connect(p); p.connect(mix); }
+    else g.connect(mix);
+    o.start(t); v.oscs.push(o);
+  }
+  // oscillateur B
+  const oB = ctx.createOscillator(); oB.setPeriodicWave(getWave(P.wtB));
+  oB.frequency.value = f0 * Math.pow(2, P.semB / 12); pe(oB, 0);
+  const gB = ctx.createGain(); gB.gain.value = P.lvlB * .5; oB.connect(gB); gB.connect(mix);
+  oB.start(t); v.oscs.push(oB);
+  // sub
+  const oS = ctx.createOscillator(); oS.type = 'sine'; oS.frequency.value = f0 / 2; pe(oS, 0);
+  const gS = ctx.createGain(); gS.gain.value = P.sub * .6; oS.connect(gS); gS.connect(mix);
+  oS.start(t); v.oscs.push(oS);
+
+  // enveloppe d'amplitude
+  const A = Math.max(.002, P.A);
+  amp.gain.setValueAtTime(0, t);
+  amp.gain.linearRampToValueAtTime(1, t + A);
+  amp.gain.setTargetAtTime(P.S, t + A, Math.max(.005, P.D) / 3);
+
+  Object.assign(v, { f1, f2, amp, lfo, lfoG, gB, gS });
+  v.oscs[0].onended = () => { all.delete(v); try { amp.disconnect(); } catch (e) {} };
+  all.add(v); voices.set(note, v); vis(note, true);
+}
+
+function release(v, rel = P.R){
+  if (v.released) return; v.released = true;
+  const t = ctx.currentTime, cur = v.amp.gain.value;
+  v.amp.gain.cancelScheduledValues(t);
+  v.amp.gain.setValueAtTime(cur, t);
+  v.amp.gain.setTargetAtTime(0, t, Math.max(.005, rel) / 3);
+  const stopAt = t + rel * 2 + .05;
+  v.oscs.forEach(o => { try { o.stop(stopAt); } catch (e) {} });
+  try { v.lfo.stop(stopAt); } catch (e) {}
+}
+function noteOff(note){
+  const v = voices.get(note);
+  if (v){ release(v); voices.delete(note); }
+  vis(note, false);
+}
+function releaseAll(){
+  voices.forEach(v => release(v)); voices.clear();
+  keyEls.forEach(el => el.classList.remove('on'));
+}
+
+function applyLive(id){
+  if (id === 'vol'){ if (master) master.gain.setTargetAtTime(P.vol, ctx.currentTime, .01); return; }
+  if (id === 'drive' || id === 'mode'){ updateCurve(); return; }
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  for (const v of all){
+    switch (id){
+      case 'cutoff': v.f1.frequency.setTargetAtTime(P.cutoff, t, .01); v.f2.frequency.setTargetAtTime(P.cutoff, t, .01); break;
+      case 'reso': v.f1.Q.setTargetAtTime(P.reso, t, .01); break;
+      case 'lfoRate': case 'sync': case 'bpm': v.lfo.frequency.setTargetAtTime(lfoHz(), t, .01); break;
+      case 'lfoDepth': v.lfoG.gain.setTargetAtTime(P.lfoDepth * 100, t, .01); break;
+      case 'lfoShape': v.lfo.type = P.lfoShape; break;
+      case 'lvlB': v.gB.gain.setTargetAtTime(P.lvlB * .5, t, .01); break;
+      case 'sub': v.gS.gain.setTargetAtTime(P.sub * .6, t, .01); break;
+    }
+  }
+}
+
+/* ---------- interface : boutons rotatifs ---------- */
+const ui = {};
+function setParam(id, v){
+  if (P[id] === v) return;
+  P[id] = v;
+  if (ui[id]) ui[id]();
+  applyLive(id);
+  if (id === 'wtA' || id === 'wtB' || id === 'lvlB') drawScope();
+  if (id === 'sync') dimRate();
+}
+function dimRate(){
+  const free = P.sync === 'Libre';
+  const r = $('[data-id="lfoRate"]'), b = $('[data-id="bpm"]');
+  if (r) r.classList.toggle('dim', !free);
+  if (b) b.classList.toggle('dim', free);
+}
+const toNorm = (d, v) => d.c === 'log' ? Math.log(v / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min);
+const fromNorm = (d, n) => {
+  n = clamp(n);
+  const v = d.c === 'log' ? d.min * Math.pow(d.max / d.min, n) : d.min + n * (d.max - d.min);
+  return d.c === 'int' ? Math.round(v) : v;
+};
+const CX = 24, CY = 24, R = 19;
+const pt = a => [CX + R * Math.cos(a * Math.PI / 180), CY + R * Math.sin(a * Math.PI / 180)];
+function arc(a0, a1){
+  const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+const fPct = v => Math.round(v * 100) + '%';
+const fHz = v => v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + ' kHz' : Math.round(v) + ' Hz';
+const fSec = v => v < 1 ? Math.round(v * 1000) + ' ms' : v.toFixed(2) + ' s';
+const fSt = v => (v > 0 ? '+' : '') + v + ' st';
+
+function knob(d, grid){
+  const el = document.createElement('div');
+  el.className = 'knob'; el.dataset.id = d.id; el.tabIndex = 0;
+  el.setAttribute('role', 'slider'); el.setAttribute('aria-label', d.l);
+  el.setAttribute('aria-valuemin', '0'); el.setAttribute('aria-valuemax', '1');
+  el.innerHTML = `<svg viewBox="0 0 48 48" aria-hidden="true"><path class="trk" d="${arc(135, 405)}"/><path class="val"/><line class="ptr"/></svg><div class="v"></div><div class="l">${d.l}</div>`;
+  const val = $('.val', el), ptr = $('.ptr', el), vt = $('.v', el);
+  ui[d.id] = () => {
+    const n = clamp(toNorm(d, P[d.id])), a = 135 + n * 270, c = Math.cos(a * Math.PI / 180), s = Math.sin(a * Math.PI / 180);
+    val.setAttribute('d', n > .004 ? arc(135, a) : '');
+    ptr.setAttribute('x1', CX + 6 * c); ptr.setAttribute('y1', CY + 6 * s);
+    ptr.setAttribute('x2', CX + 14 * c); ptr.setAttribute('y2', CY + 14 * s);
+    const txt = d.f ? d.f(P[d.id]) : String(P[d.id]);
+    vt.textContent = txt;
+    el.setAttribute('aria-valuenow', n.toFixed(3)); el.setAttribute('aria-valuetext', txt);
+  };
+  let drag = null, last = 0;
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId); e.preventDefault();
+    drag = { y: e.clientY, n: toNorm(d, P[d.id]), moved: false };
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dy = drag.y - e.clientY;
+    if (Math.abs(dy) > 3) drag.moved = true;
+    setParam(d.id, fromNorm(d, drag.n + dy / (e.shiftKey ? 700 : 170)));
+  });
+  el.addEventListener('pointerup', () => {
+    if (drag && !drag.moved){
+      const now = performance.now();
+      if (now - last < 320){ setParam(d.id, INIT[d.id]); last = 0; } else last = now;
+    }
+    drag = null;
+  });
+  el.addEventListener('pointercancel', () => { drag = null; });
+  el.addEventListener('keydown', e => {
+    const dir = (e.key === 'ArrowUp' || e.key === 'ArrowRight') ? 1 : (e.key === 'ArrowDown' || e.key === 'ArrowLeft') ? -1 : 0;
+    if (!dir) return; e.preventDefault();
+    const step = d.c === 'int' ? 1 / (d.max - d.min) : .02;
+    setParam(d.id, fromNorm(d, toNorm(d, P[d.id]) + dir * step));
+  });
+  grid.append(el);
+}
+function chipRow(parent, id, opts){
+  const row = document.createElement('div'); row.className = 'chips'; row.setAttribute('role', 'group');
+  const btns = opts.map(([val, label]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    b.onclick = () => setParam(id, val); row.append(b); return [val, b];
+  });
+  ui[id] = () => btns.forEach(([val, b]) => b.setAttribute('aria-pressed', String(P[id] === val)));
+  parent.append(row);
+}
+function panel(title, defs, extra){
+  const s = document.createElement('section'); s.className = 'panel';
+  s.innerHTML = `<h2>${title}</h2><div class="grid"></div>`;
+  const g = $('.grid', s);
+  defs.forEach(d => knob(d, g));
+  if (extra) extra(s);
+  $('#panels').append(s);
+}
+
+panel('Oscillateurs', [
+  { id:'wtA', l:'Table A', min:0, max:1, c:'lin', f: v => TABLE_NAMES[Math.round(v * 5)] },
+  { id:'uni', l:'Unisson', min:1, max:7, c:'int' },
+  { id:'det', l:'Désaccord', min:0, max:100, c:'lin', f: v => Math.round(v) + ' ct' },
+  { id:'wid', l:'Largeur', min:0, max:1, c:'lin', f: fPct },
+  { id:'wtB', l:'Table B', min:0, max:1, c:'lin', f: v => TABLE_NAMES[Math.round(v * 5)] },
+  { id:'semB', l:'B hauteur', min:-24, max:24, c:'int', f: fSt },
+  { id:'lvlB', l:'B niveau', min:0, max:1, c:'lin', f: fPct },
+  { id:'sub', l:'Sub', min:0, max:1, c:'lin', f: fPct }
+]);
+panel('Filtre', [
+  { id:'cutoff', l:'Coupure', min:20, max:20000, c:'log', f: fHz },
+  { id:'reso', l:'Résonance', min:.5, max:18, c:'lin', f: v => v.toFixed(1) },
+  { id:'fEnv', l:'Enveloppe', min:-48, max:48, c:'int', f: fSt },
+  { id:'fDec', l:'Déclin', min:.02, max:2, c:'log', f: fSec }
+]);
+panel('LFO wobble', [
+  { id:'lfoRate', l:'Vitesse', min:.1, max:30, c:'log', f: v => v.toFixed(1) + ' Hz' },
+  { id:'lfoDepth', l:'Profondeur', min:0, max:60, c:'int', f: v => v + ' st' },
+  { id:'bpm', l:'Tempo', min:60, max:220, c:'int', f: v => v + ' bpm' }
+], s => {
+  chipRow(s, 'lfoShape', [['sine','Sinus'],['triangle','Triangle'],['square','Carré'],['sawtooth','Rampe']]);
+  chipRow(s, 'sync', [['Libre','Libre'],['1/2','1/2'],['1/4','1/4'],['1/4T','1/4T'],['1/8','1/8'],['1/8T','1/8T'],['1/16','1/16'],['1/16T','1/16T']]);
+});
+panel('Enveloppe', [
+  { id:'A', l:'Attaque', min:.001, max:2, c:'log', f: fSec },
+  { id:'D', l:'Déclin', min:.01, max:3, c:'log', f: fSec },
+  { id:'S', l:'Sustain', min:0, max:1, c:'lin', f: fPct },
+  { id:'R', l:'Relâche', min:.01, max:3, c:'log', f: fSec }
+]);
+panel('Pitch et distorsion', [
+  { id:'pAmt', l:'Chute', min:0, max:48, c:'int', f: v => v + ' st' },
+  { id:'pDec', l:'Durée', min:.01, max:1, c:'log', f: fSec },
+  { id:'drive', l:'Drive', min:0, max:1, c:'lin', f: fPct },
+  { id:'vol', l:'Volume', min:0, max:1, c:'lin', f: fPct }
+], s => chipRow(s, 'mode', [[0,'Douce'],[1,'Dure'],[2,'Repli']]));
+
+/* ---------- presets ---------- */
+const presetBtns = [];
+Object.keys(PRESETS).forEach(name => {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = name;
+  b.onclick = () => applyPreset(name);
+  presetBtns.push([name, b]); $('#presets').append(b);
+});
+function applyPreset(name){
+  releaseAll();
+  Object.assign(P, INIT, PRESETS[name]);
+  Object.keys(ui).forEach(k => ui[k]());
+  Object.keys(P).forEach(applyLive);
+  dimRate(); drawScope();
+  presetBtns.forEach(([n, b]) => b.setAttribute('aria-pressed', String(n === name)));
+}
+
+/* ---------- oscilloscope des tables ---------- */
+function drawScope(){
+  const c = $('#scope'), dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  if (c.width !== Math.round(w * dpr)){ c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+  const cs = getComputedStyle(document.documentElement);
+  g.strokeStyle = cs.getPropertyValue('--track'); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+  const line = (y, color, alpha) => {
+    g.globalAlpha = alpha; g.strokeStyle = color; g.lineWidth = 2.5; g.lineJoin = 'round'; g.beginPath();
+    for (let i = 0; i <= y.length; i++){
+      const yy = y[i % y.length], x = i / y.length * (w - 16) + 8, py = h / 2 - yy * (h / 2 - 12);
+      i ? g.lineTo(x, py) : g.moveTo(x, py);
+    }
+    g.stroke(); g.globalAlpha = 1;
+  };
+  if (P.lvlB > .01) line(samples(P.wtB), cs.getPropertyValue('--accent2').trim(), .4 + .6 * P.lvlB);
+  line(samples(P.wtA), cs.getPropertyValue('--accent').trim(), 1);
+}
+addEventListener('resize', () => { drawScope(); if (wantOct() !== kbOct) buildKeys(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawScope);
+
+/* ---------- clavier tactile ---------- */
+const keyEls = new Map();
+let kbOct = 0, hold = false;
+const wantOct = () => innerWidth >= 720 ? 2 : 1;
+const vis = (note, on) => { const el = keyEls.get(note - base()); if (el) el.classList.toggle('on', on); };
+function buildKeys(){
+  const kb = $('#kb'); kb.innerHTML = ''; keyEls.clear();
+  kbOct = wantOct();
+  const tw = kbOct * 7 + 1, W = [0,2,4,5,7,9,11], whiteOff = [];
+  for (let i = 0; i < tw; i++){
+    const off = 12 * Math.floor(i / 7) + W[i % 7]; whiteOff.push(off);
+    const k = document.createElement('div'); k.className = 'key white'; k.dataset.off = off;
+    kb.append(k); keyEls.set(off, k);
+  }
+  const bw = 100 / tw * .6;
+  for (let i = 0; i < tw - 1; i++){
+    if ([0,1,3,4,5].includes(i % 7)){
+      const off = whiteOff[i] + 1, k = document.createElement('div');
+      k.className = 'key black'; k.dataset.off = off;
+      k.style.width = bw + '%'; k.style.left = ((i + 1) * 100 / tw - bw / 2) + '%';
+      kb.append(k); keyEls.set(off, k);
+    }
+  }
+}
+const active = new Map(); // pointerId -> note
+function pressNote(note){
+  if (hold){ voices.has(note) ? noteOff(note) : noteOn(note); }
+  else noteOn(note);
+}
+const kbEl = $('#kb');
+kbEl.addEventListener('pointerdown', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  e.preventDefault(); ensureCtx();
+  const note = base() + Number(k.dataset.off);
+  active.set(e.pointerId, note); pressNote(note);
+});
+kbEl.addEventListener('pointermove', e => {
+  if (!active.has(e.pointerId) || hold) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY), k = el && el.closest && el.closest('.key');
+  if (!k) return;
+  const note = base() + Number(k.dataset.off), cur = active.get(e.pointerId);
+  if (note !== cur){ noteOff(cur); noteOn(note); active.set(e.pointerId, note); }
+});
+const up = e => {
+  if (!active.has(e.pointerId)) return;
+  if (!hold) noteOff(active.get(e.pointerId));
+  active.delete(e.pointerId);
+};
+kbEl.addEventListener('pointerup', up); kbEl.addEventListener('pointercancel', up);
+document.addEventListener('pointerdown', () => { if (ctx && ctx.state !== 'running') ctx.resume(); }, { passive: true });
+
+/* clavier d'ordinateur */
+const KM = 'awsedftgyhujkolp;';
+addEventListener('keydown', e => {
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const i = KM.indexOf(e.key.toLowerCase()); if (i < 0) return;
+  ensureCtx(); pressNote(base() + i);
+});
+addEventListener('keyup', e => {
+  if (hold) return;
+  const i = KM.indexOf(e.key.toLowerCase()); if (i < 0) return;
+  noteOff(base() + i);
+});
+
+/* barre du bas */
+ui.oct = () => { $('#octLbl').textContent = 'C' + P.oct; };
+const setOct = o => { releaseAll(); setParam('oct', clamp(o, 0, 6)); };
+$('#octDn').onclick = () => setOct(P.oct - 1);
+$('#octUp').onclick = () => setOct(P.oct + 1);
+$('#hold').onclick = e => {
+  hold = !hold; e.currentTarget.setAttribute('aria-pressed', String(hold));
+  if (!hold) releaseAll();
+};
+$('#stop').onclick = () => releaseAll();
+
+/* MIDI (optionnel, sur demande) */
+$('#midi').onclick = async e => {
+  const b = e.currentTarget;
+  if (!navigator.requestMIDIAccess){ b.textContent = 'MIDI indisponible'; return; }
+  try {
+    const acc = await navigator.requestMIDIAccess();
+    const hook = () => {
+      let n = 0;
+      acc.inputs.forEach(inp => {
+        n++;
+        inp.onmidimessage = m => {
+          const [s, d1, d2] = m.data, cmd = s & 0xf0;
+          if (cmd === 0x90 && d2 > 0){ ensureCtx(); noteOn(d1); }
+          else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) noteOff(d1);
+          else if (cmd === 0xb0 && d1 === 123) releaseAll();
+        };
+      });
+      b.textContent = n ? 'MIDI ' + n : 'MIDI aucun clavier';
+      b.setAttribute('aria-pressed', String(n > 0));
+    };
+    hook(); acc.onstatechange = hook;
+  } catch (err){ b.textContent = 'MIDI refusé'; }
+};
+
+/* démarrage */
+buildKeys();
+applyPreset('Wobble');
+</script>
+</body>
+</html>
