@@ -8,3 +8,5 @@ Presets : Wobble, Reese, Screech, Kick gabber, Supersaw.
 Jeu : clavier tactile multi-touch, bouton Hold pour tourner les boutons pendant qu'une note sonne, et MIDI USB si tu branches un clavier.
 
 Ce n'est pas un vrai clone de Serum : pas d'import de wavetables ni de matrice de modulation. Tu peux le mettre sur l'écran d'accueil depuis le menu de Chrome. Pour le wobble à 150 BPM, règle le tempo, choisis une division dans le LFO et monte la profondeur.
+
+Test att: https://nyxover.github.io/veninDroidSynthKick/index.html
